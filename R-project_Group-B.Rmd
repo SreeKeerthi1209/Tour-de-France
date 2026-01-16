@@ -1,0 +1,323 @@
+---
+title: "Tour de France : Analytical study Report"
+author: "Group B"
+date: "11-12-2025"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: false
+    code_folding: show    
+    theme: cosmo
+    df_print: paged
+editor_options:
+  chunk_output_type: console
+fontsize: 9pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo   = TRUE,    # show code by default
+  message= FALSE,   # hide package messages in output
+  warning= FALSE,   # hide warnings in output
+  fig.align = 'center'
+)
+```
+
+
+
+
+**Vishnuhari peediyekkal(ID:25253692)**
+Contributed to the introduction of the Tour de France and was in charge of cleaning and preparation of the data to be analyzed.
+
+
+**Eshan kumar Jain(ID:25252963)**
+Developed visualizations analyzing Tour de France trends, including the evolution of race distance(plot 1A) and winner age (plot 1B), and a chart ranking top-winning nations and their top winner(one with most wins)(Plot 2). These plots reveal France's historical dominance and shifting race dynamics over time.
+
+
+**Sree Keerthi Balusu(ID:25254143)**
+Developed Plot 3 (Winning Margin Trends Over Time) and provided the accompanying analytical summary, which highlights how winning margins have decreased from several hours to under 30 minutes in modern races  emphasizing the increasing competitiveness in the race. In addition, crafting the report conclusion.
+
+
+**Dinesh Kumar Dharshanam(ID:25251211)**
+Developed Plot 4 (Evolution of Winner Physical Characteristics) and helped to write the conclusion, which helped to combine the results in all visual analyzing and ensuring that key insights were clearly interpreted and effectively presented.
+
+
+# Introduction
+
+The Tour de France, first held in 1903, is one of the most renowned and demanding sporting events in the world. It brings together elite cyclists who compete across thousands of kilometres, challenging their endurance, strategy, and physical capability. Over more than a century, the race has evolved significantly in terms of route design, competitive intensity, athlete characteristics, and international participation. These changes make the Tour de France an ideal subject for statistical analysis.
+
+In this mini-project, we analyse historical data from the Tour de France, focusing on race winners and stage characteristics. Using R programming, we explore long-term trends, identify patterns, and interpret how the nature of performance and competitiveness has developed over time. The dataset includes winner information such as nationality, age, weight, height, and finishing time, along with stage-level details such as stage type and distance. Together, these variables offer a rich opportunity for understanding how the race and its champions have changed across different eras.
+
+
+# Dataset Preparation
+
+```{r}
+
+# Loading the Libraries Required:
+
+library(tidyverse)
+library(paletteer)
+library(rvest)
+library(lubridate)
+library(patchwork)
+library(ggplot2)
+library(dplyr)
+
+#Get the Data
+
+
+tdf_winners <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/main/data/2020/2020-04-07/tdf_winners.csv')
+
+remotes::install_github("alastairrushworth/tdf")
+
+ # Loaded the 'tdf' package to access Tour de France datasets
+
+library(tdf)
+
+# Access the editions dataset from 'tdf'
+
+data("editions", package = "tdf")  # Loads the dataset into your environment
+
+winners <- editions %>%
+  select(-stage_results)  # Removed the nested stage_results column to keep only edition-level info
+
+# Expanded the list of stage_results into longer format
+# Converted rank to character inside each stage_results entry
+# Further unnest stage_results to flatten into rows
+
+data("editions", package = "tdf") 
+
+all_years <- editions %>% 
+  unnest_longer(stage_results) %>% 
+  mutate(stage_results = map(stage_results, ~ mutate(.x, rank = as.character(rank)))) %>% 
+  unnest_longer(stage_results) 
+
+#Taking the exapnded dataset and Flattening nested data frames into a single tidy data frame
+
+stage_all <- all_years %>% 
+  select(stage_results) %>% 
+  flatten_df()
+
+# Remove the redundant stage_results column
+
+combo_df <- bind_cols(all_years, stage_all) %>% 
+  select(-stage_results)
+
+# Clean up the combined dataset
+stage_clean <- combo_df %>% 
+  select(edition, start_date,stage_results_id:last_col()) %>% # Keep edition, start_date, and all stage-related columns
+  mutate(year = lubridate::year(start_date)) %>% # Extract year from start_date
+  rename(age = age...25) %>% 
+  select(edition, year, everything(), -start_date) # Reorder columns and drop start_date
+
+
+winners %>% # Save winners data as CSV in the project folder
+  write_csv(here::here("2020", "2020-04-07", "tdf_winners.csv"))
+
+stage_clean %>%  # Save stage-level data as CSV in the project folder
+  write_csv(here::here("2020", "2020-04-07", "stage_data.csv"))
+
+winners_check <- read_csv(here::here("2020", "2020-04-07", "tdf_winners.csv"))
+glimpse(winners_check)
+
+
+```
+
+Imported Tour de France data from the tdf package, then expanded and flattened the nested stage results into a tidy long-format dataset. After cleaning and reorganizing the data by extracting year and renaming variables, we saved both the edition-level winners and stage-level datasets as CSV files for reproducible analysis.
+
+
+
+# Plot 1
+Evolution of Race Distance and Winner Age
+
+Problem Statement: How have race distance and winner age evolved over time?
+
+```{r}
+
+#| label: fig-distance-age
+#| fig.cap: "Figure 1: Race distance has decreased from over 5,000km to around 3,500km, while winner age has remained stable at 28-30 years. Early editions featured exceptionally long races with younger winners."
+#| fig.asp: 0.6
+#| out.width: "100%"
+
+
+p1a <- ggplot(tdf_winners, aes(x = edition, y = distance)) +
+  geom_line(color = "#0D73D6", linewidth = 1) +
+  labs(x = "Year", y = "Distance (km)", title = "Race Distance") +
+  theme_minimal()
+
+p1b <- ggplot(tdf_winners, aes(x = edition, y = age)) +
+  geom_point(color = "#F3C300", linewidth = 2, alpha = 0.7) +
+  geom_smooth(method = "loess", color = "#DF0024", se = FALSE) +
+  labs(x = "Year", y = "Winner Age", title = "Winner Age") +
+  theme_minimal()
+
+p1a / p1b
+```
+
+
+## The first plot shows how Tour de France race distances have evolved over time: distances peaked in the early decades and then gradually declined, stabilizing around 3,000–4,000 km in recent years. 
+
+## The second plot tracks winner age, revealing a slight upward trend over time, with individual ages fluctuating but generally increasing. Together, these plots suggest that while the race has become shorter, the average age of winners has modestly risen, possibly reflecting changes in training, strategy, or physical demands.
+
+
+
+# Plot 2
+Nationality Dominance in Tour de France Wins
+
+Problem Statement: Which countries have been most successful in winning the Tour de France?
+Top 10 winning nations and their top winner(s)
+
+```{r}
+
+#| label: fig-nationality
+#| fig.cap: "Figure 2: France dominates with 36 wins, followed by Belgium (18) and Spain (12). The top 5 countries account for 78% of all victories, showing clear geographical patterns in cycling success."
+#| fig.asp: 0.7
+#| out.width: "80%"
+
+library(dplyr)
+library(ggplot2)
+
+# Step 1: Country-wise total wins (top 10 nations)
+top_nations <- tdf_winners %>%
+  count(nationality, sort = TRUE) %>%
+  slice(1:10)
+
+# Step 2: Find top rider(s) per country (handles ties)
+top_riders <- tdf_winners %>%
+  count(nationality, winner_name) %>%
+  group_by(nationality) %>%
+  mutate(max_wins = max(n)) %>%
+  filter(n == max_wins) %>%
+  summarise(top_riders = paste0(winner_name, " (", n, ")", collapse = ", ")) %>%
+  ungroup()
+
+# Step 3: Join rider info to country totals
+top_nations <- top_nations %>%
+  left_join(top_riders, by = "nationality")
+
+# Step 4: Plot
+ggplot(top_nations, aes(x = reorder(nationality, n), y = n)) +
+  geom_col(fill = "tomato2", width = 0.7) +
+  coord_flip() +
+  geom_text(aes(label = top_riders), hjust = -0.1, size = 3.5) +
+  labs(
+    title = "Tour de France Wins by Country (Top 10)",
+    x = "Nation",
+    y = "Number of Wins"
+  ) +
+  theme_minimal() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.3)))
+
+
+```
+
+## This plot shows the top 10 countries with the most Tour de France victories. France dominates the Tour de France with 36 victories, far ahead of Belgium (18) and Spain (12). The United States and Italy follow with 10 wins each, while Great Britain has 6. Luxembourg, Netherlands, Switzerland, and Australia contribute smaller tallies. The chart also highlights the top rider(s) from each nation, showing who led their country’s success.
+
+
+
+# Plot 3
+Winning Margin Trends Over Time
+
+Problem Statement: Have Tour de France victories become more competitive over time?
+
+```{r}
+
+#| label: fig-margin
+#| fig.cap: "Figure 3: Winning margins have decreased from several hours in early editions to under 1 hour in modern races. The trend shows increased competitiveness, with closer finishes becoming the norm after 1960."
+#| fig.asp: 0.6
+#| out.width: "100%"
+
+# Plot with margin in minutes instead of hours
+p3 <- tdf_winners %>%
+  mutate(
+    margin_hours = as.numeric(as.character(time_margin)),
+    margin_minutes = margin_hours * 60  # Convert to minutes
+  ) %>%
+  filter(
+    !is.na(margin_minutes),
+    margin_minutes > 5,      # More than 5 minutes
+    margin_minutes < 600     # Less than 10 hours
+  ) %>%
+  ggplot(aes(x = edition, y = margin_minutes)) +
+  geom_point(color = "#0D73D6", size = 2.5, alpha = 0.6) +
+  geom_smooth(method = "loess", color = "#DF0024", se = FALSE, 
+              fill = "#FF9999", alpha = 0.2) +
+  geom_smooth(method = "lm", color = "darkorange2", se =FALSE)+
+  labs(
+    title = "Tour de France Winning Margin Over Time",
+    subtitle = "Decreasing margins show increased race competitiveness",
+    x = "Year",
+    y = "Winning Margin (minutes)",
+    caption = "Data: 1903-2020 | Early races had margins over 3 hours, modern races under 30 minutes"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    plot.subtitle = element_text(color = "gray30", size = 11)
+  )
+
+p3
+```
+
+## This plot tracks the evolution of winning margins in the Tour de France from 1903 to 2020. It shows a clear downward trend, with early victors often winning by 2–3 hours, while modern champions secure victory by less than 30 minutes. The shrinking margin reflects the sport’s growing competitiveness, driven by professionalization, advanced training, and tighter team tactics. Overall, the visualization highlights how the race has transformed from individual dominance to a fiercely contested team event.
+
+
+# Plot 4
+Evolution of Winner Physical Characteristics
+
+Problem Statement: How have the physical characteristics of Tour de France winners evolved over time, and what does this reveal about changing demands in professional cycling?
+
+```{r}
+
+#| label: fig-bmi-evolution
+#| fig.cap: "Figure 4: Body Mass Index (BMI) of Tour de France winners has decreased from approximately 23-24 kg/m² in the 1950s to 21-22 kg/m² in recent decades. This downward trend, shown through boxplots per decade and a smoothed trend line, reflects the sport's evolution toward lighter, climbing-optimized athletes. The change highlights increased emphasis on power-to-weight ratio over raw power in modern professional cycling."
+#| fig.asp: 0.6
+#| out.width: "100%"
+
+# Plot 4: Evolution of Winner Physical Characteristics
+p4 <- tdf_winners %>%
+  filter(!is.na(height), !is.na(weight)) %>%
+  mutate(
+    bmi = weight / (height^2),
+    decade = floor(edition / 10) * 10
+  ) %>%
+  ggplot(aes(x = decade, y = bmi)) +
+  geom_boxplot(aes(group = decade), fill = "#F3C300", alpha = 0.7) +
+  geom_smooth(method = "loess", color = "#DF0024", se = FALSE, size = 1.2) +
+  labs(
+    title = "Evolution of Winner Body Mass Index (BMI)",
+    subtitle = "Tour de France winners have become leaner over time",
+    x = "Decade",
+    y = "BMI (kg/m²)",
+    caption = "Data available from 1947 onward | BMI = weight/height²"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+p4
+```
+
+## The Boxplots show BMI distribution per decade with a decreasing trend line. Tour de France winners' BMI dropped from 23-24 kg/m² (1950s) to 21-22 kg/m² (2000s), indicating a ~2 kg/m² reduction. This physiological shift correlates with increased mountain stages and emphasizes power-to-weight efficiency over flat-stage power in modern cycling.
+
+
+# Conclusion
+
+##This historical analysis of the Tour de France reveals profound insights into the evolution of professional cycling:
+
+## Physiological Optimization: 
+Winners' Body Mass Index has decreased from approximately 23-24 kg/m² in the 1950s to 21-22 kg/m² today, reflecting a strategic shift toward climbing-optimized athletes with superior power-to-weight ratios.
+
+## Increasing Competitiveness:
+Winning margins have dramatically shrunk from several hours in early editions to under 30 minutes in modern races, indicating heightened competition driven by professionalization and technological advancement.
+
+## Optimal Performance Window: 
+Winner age has remained remarkably consistent around 28-30 years across all eras, suggesting this period represents the optimal balance of physical capacity, strategic intelligence, and endurance.
+
+## Historical Dominance Patterns: 
+France leads with 36 victories, followed by Belgium (18) and Spain (12), demonstrating Europe's enduring supremacy in road cycling, though this concentration has diversified in recent decades.
+
+The average Tour de France winner completes approximately 3,500km in around 90 hours, achieving speeds that have increased from 25 km/h in the early 1900s to over 40 km/h today. This analysis illustrates the sport's transformation from a test of individual endurance to a highly strategic team endeavor where victory margins are measured in seconds and athlete specialization is meticulously optimized. These insights provide valuable context for understanding cycling's historical development and the factors contributing to success in one of the world's most demanding sporting events

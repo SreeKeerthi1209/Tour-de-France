@@ -1,0 +1,1 @@
+need to upload the zip file into R-studio server and then run as it requires csv files as per the path given.
